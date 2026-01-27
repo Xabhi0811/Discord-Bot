@@ -1,6 +1,5 @@
 require("dotenv").config();
-const { Client, GatewayIntentBits, AttachmentBuilder } = require("discord.js");
-const { GoogleGenAI } = require("@google/genai");
+const { Client, GatewayIntentBits } = require("discord.js");
 
 const client = new Client({
   intents: [
@@ -10,27 +9,38 @@ const client = new Client({
   ],
 });
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GOOGLE_API_KEY,
-});
-
-async function generateImage(prompt) {
+// Node 22 has fetch built-in
+async function generateContent(prompt) {
   try {
-    const response = await ai.models.generateImages({
-      model: "imagen-3.0-generate-001",
-      prompt,
-      config: {
-        numberOfImages: 1,
-      },
-    });
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro-001:generateContent?key=${process.env.GOOGLE_API_KEY}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [{ text: prompt }],
+            },
+          ],
+        }),
+      }
+    );
 
-    const imageBase64 = response.generatedImages[0].image.imageBytes;
-    return Buffer.from(imageBase64, "base64");
-  } catch (error) {
-    console.error("Image generation error:", error);
-    return null;
+    const data = await res.json();
+
+    if (!data.candidates) {
+      console.error("Bad API response:", data);
+      return "❌ No response from AI.";
+    }
+
+    return data.candidates[0].content.parts[0].text;
+  } catch (err) {
+    console.error("AI Error:", err);
+    return "❌ Failed to generate response.";
   }
 }
+
 
 client.once("clientReady", () => {
   console.log("Bot is ready!");
@@ -39,18 +49,8 @@ client.once("clientReady", () => {
 client.on("messageCreate", async (message) => {
   if (message.author.bot) return;
 
-  const imageBuffer = await generateImage(message.content);
-
-  if (!imageBuffer) {
-    message.reply("❌ Failed to generate image.");
-    return;
-  }
-
-  const attachment = new AttachmentBuilder(imageBuffer, {
-    name: "generated-image.png",
-  });
-
-  message.channel.send({ files: [attachment] });
+  const reply = await generateContent(message.content);
+  await message.reply(reply);
 });
 
 client.login(process.env.DISCORD_BOT_TOKEN);
