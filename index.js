@@ -10,6 +10,7 @@ const client = new Client({
 });
 
 
+
 // Node 22 has fetch built-in
 async function generateContent(prompt) {
   try {
