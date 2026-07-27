@@ -28,6 +28,7 @@ async function generateContent(prompt) {
         }),
       }
     );
+
     
 
     const data = await res.json();
